@@ -1,0 +1,209 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<link rel="stylesheet" href="~/css/homeview.css" />
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDMTJ3TWGFcnghIyUMzgbkBZRfPjnm6EpI"></script>
+
+<div id="app" v-cloak>
+
+    <div class="row">
+        <div class="col-sm-3">
+
+            <form class="md-form form-sm mt-0">
+                <input class="form-control form-control-sm" :autofocus="'autofocus'" type="text"
+                       placeholder="Search" aria-label="Search" v-model="debounceSearch">
+            </form>
+
+            <div v-show="filteredAndSlicedLocationsHasResults" class="locations-list">
+                <div class="location"
+                     v-for="location in filteredAndSlicedLocations"
+                     :key="location.id"
+                     @@click="onLocationClick(location)">
+
+                    <i class="location-icon fa fa-map-marker-alt"></i>
+                    <span class="location-postcode">{{location.postcode}}</span>
+                    <span class="location-id">({{location.id}})</span>
+                    <div v-if="location.description" class="location-description">{{location.description}}</div>
+                </div>
+                <div class="locations-list-count">
+                    Showing {{filteredAndSlicedLocationCount}}/{{filteredLocationCount}} results
+                </div>
+            </div>
+
+            <div v-show="!filteredAndSlicedLocationsHasResults" class="no-results">
+                <div class="alert alert-danger" role="alert">
+                    No results!
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-9">
+            <div class="row">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    var app = new Vue({
+        el: '#app',
+        data() {
+            return {
+                map: null,
+                mapMarkers: [],
+                mapInfoWindow: null,
+                locations: @Json.Serialize(Model.Locations),
+                limitLocationRows: @Json.Serialize(Model.LimitLocationRows),
+                debounceSearch: null,
+                search: null
+            };
+        },
+        mounted() {
+            if (this.hasGoogleLoaded()) {
+                this.loadMap();
+            } else {
+                setTimeout(this.loadMap, 100)
+            }
+        },
+        watch: {
+            filteredAndSlicedLocations() {
+                this.setMapMarkers();
+            },
+            debounceSearch: _.debounce(function () {
+                this.search = this.debounceSearch;
+            }, 400),
+        },
+        computed: {
+            filteredLocations() {
+                let filtered;
+
+                if (this.search) {
+                    filtered = this.locations.filter(x => {
+                        let postCodeMatch = this.matchesSearch(x.postcode);
+                        let descriptionMatch = this.matchesSearch(x.description);
+                        return postCodeMatch || descriptionMatch;
+                    })
+                }
+                else {
+                    filtered = this.locations;
+                }
+
+                return filtered;
+            },
+            filteredAndSlicedLocations() {
+                return this.filteredLocations.slice(0, this.limitLocationRows);
+            },
+            filteredLocationsHasResults() {
+                return this.filteredLocations && this.filteredLocations.length > 0;
+            },
+            filteredAndSlicedLocationsHasResults() {
+                return this.filteredAndSlicedLocations && this.filteredAndSlicedLocations.length > 0;
+            },
+            filteredLocationCount() {
+                if (!this.filteredLocationsHasResults)
+                    return 0;
+
+                return this.filteredLocations.length;
+            },
+            filteredAndSlicedLocationCount() {
+                if (!this.filteredAndSlicedLocationsHasResults)
+                    return 0;
+
+                return this.filteredAndSlicedLocations.length;
+            }
+        },
+        methods: {
+            matchesSearch(val) {
+                return val && val.toUpperCase()
+                    .indexOf(this.search.toUpperCase()) > -1;
+            },
+            loadMap() {
+                const bounds = new google.maps.LatLngBounds();
+                const element = document.getElementById('map');
+                const options = {
+                    maxZoom: 17,
+                }
+                this.map = new google.maps.Map(element, options);
+
+                this.setMapMarkers();
+            },
+            setMapMarkers() {
+                this.clearMapMarkers();
+
+                if (!this.filteredAndSlicedLocationsHasResults) {
+                    this.setDefaultLocationForMap();
+                } else {
+                    this.filteredAndSlicedLocations.forEach((location) => {
+                        this.setMapMarker(location);
+                    });
+
+                    this.setMapBounds();
+                }
+            },
+            setMapMarker(location) {
+                const position = new google.maps.LatLng(location.latitude, location.longitude);
+
+                const marker = new google.maps.Marker({
+                    position,
+                    map: this.map,
+                    title: location.postcode,
+                    animation: google.maps.Animation.DROP,
+                    id: location.id
+                });
+
+                this.mapMarkers.push(marker);
+                this.addMapMarkerClickEvent(marker, location);
+            },
+            setMapBounds() {
+                let bounds = new google.maps.LatLngBounds();
+
+                this.filteredAndSlicedLocations.forEach((location) => {
+                    const position = new google.maps.LatLng(location.latitude, location.longitude);
+                    bounds.extend(position);
+                });
+
+                this.map.fitBounds(bounds);
+                this.map.panToBounds(bounds);
+            },
+            addMapMarkerClickEvent(marker, location) {
+                marker.addListener('click', () => { this.showMapMarkerInfoBox(marker, location) });
+            },
+            showMapMarkerInfoBox(marker, location) {
+                if (this.mapInfoWindow) {
+                    this.mapInfoWindow.close();
+                }
+                this.mapInfoWindow = new google.maps.InfoWindow({
+                    content: `<div>${location.postcode}<div>${location.description}</div></div>`
+                });
+                this.mapInfoWindow.open(this.map, marker);
+            },
+            clearMapMarkers() {
+                for (let i = 0; i < this.mapMarkers.length; i++) {
+                    this.mapMarkers[i].setMap(null);
+                }
+                this.mapMarkers.length = 0;
+            },
+            setDefaultLocationForMap() {
+                // Default to Bristol!
+                const mapCentre = new google.maps.LatLng(51.454514, -2.587910);
+                this.map.setCenter(mapCentre);
+                this.map.setZoom(10);
+            },
+            hasGoogleLoaded() {
+                return typeof google !== "undefined";
+            },
+            onLocationClick(location) {
+                let marker = this.mapMarkers.find(x => x.id === location.id);
+                if (marker) {
+                    marker.setAnimation(google.maps.Animation.BOUNCE);
+                    setTimeout(function () { marker.setAnimation(null); }, 750);
+
+                    this.showMapMarkerInfoBox(marker, location);
+                }
+            },
+        }
+    });
+
+</script>

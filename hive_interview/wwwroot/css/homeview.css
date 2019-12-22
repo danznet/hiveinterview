@@ -1,0 +1,52 @@
+﻿#map {
+    width: 100%;
+    background-color: grey;
+    height: 450px;
+}
+
+.locations-list {
+    margin-top: 10px;
+}
+
+.locations-list-count {
+    font-size: 12px;
+    color: #757575;
+    margin-top: 5px;
+}
+
+.location {
+    border-left: solid #ddd 4px;
+    padding: 5px;
+}
+
+.location:hover {
+    border-left: solid #42A5F5 4px;
+    background-color: #F5F5F5;
+    cursor: pointer;
+}
+
+.location-icon {
+    color: #BDBDBD;
+    text-align: center;
+    width: 24px;
+}
+
+.location-id {
+    font-size: 12px;
+    color: #388E3C;
+}
+
+.location-postcode {
+}
+
+.location-description {
+    margin-left: 28px;
+    font-style: italic;
+    font-size: 12px;
+    color: #757575;
+}
+
+.no-results {
+    margin-top: 10px;
+    font-size: 12px;
+}
